@@ -1,17 +1,53 @@
+# Environment - CRITICAL (contains API keys)
+backend/.env
+.env
+.env.local
+.env.production
+
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
-.venv
+*.so
+.Python
+env/
 venv/
-ENV/
-.env
+.venv/
+*.egg-info/
+dist/
+build/
 
 # Node
-node_modules/
-dist/
-.eslintcache
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+npm-debug.log*
+package-lock.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
 # OS
 .DS_Store
 Thumbs.db
+desktop.ini
+
+# Database dumps
+*.sql
+*.sqlite3
+
+# Logs
+*.log
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Misc
+*.bak
+*.tmp
