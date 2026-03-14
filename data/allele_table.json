@@ -1,0 +1,34 @@
+{
+  "CYP2D6": {
+    "*1": "Normal function",
+    "*2": "Normal function",
+    "*3": "No function",
+    "*4": "No function",
+    "*5": "No function",
+    "*6": "No function",
+    "*9": "Decreased function",
+    "*10": "Decreased function",
+    "*17": "Decreased function",
+    "*41": "Decreased function",
+    "*1xN": "Increased function",
+    "*2xN": "Increased function"
+  },
+  "CYP2C19": {
+    "*1": "Normal function",
+    "*2": "No function",
+    "*3": "No function",
+    "*4": "No function",
+    "*17": "Increased function"
+  },
+  "CYP2C9": {
+    "*1": "Normal function",
+    "*2": "Decreased function",
+    "*3": "No function"
+  },
+  "CYP3A5": {
+    "*1": "Normal function",
+    "*3": "No function",
+    "*6": "No function",
+    "*7": "No function"
+  }
+}

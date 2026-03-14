@@ -1,0 +1,5 @@
+{
+  "patient_id": "PT-003",
+  "prescribed_drug": "sertraline",
+  "allele_calls": {"CYP2D6": "*4/*4", "CYP2C19": "*2/*2"}
+}

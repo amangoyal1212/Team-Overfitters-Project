@@ -1,0 +1,11 @@
+Annotation ID	Gene	Drug	Phenotype Category	Level of Evidence	Sentence	PMID
+PA001	CYP2D6	codeine	Poor Metabolizer	1A	CYP2D6 poor metabolizers have reduced conversion of codeine to morphine via O-demethylation.	20083681, 22205192
+PA002	CYP2D6	codeine	Ultrarapid Metabolizer	1A	CYP2D6 ultrarapid metabolizers produce excessive morphine from codeine via enhanced O-demethylation.	17653075, 22205192
+PA003	CYP2C19	clopidogrel	Poor Metabolizer	1A	CYP2C19 poor metabolizers cannot convert the prodrug clopidogrel to its active thiol metabolite.	20801498, 21716271
+PA004	CYP2C19	clopidogrel	Intermediate Metabolizer	2A	CYP2C19 intermediate metabolizers have partially reduced clopidogrel activation.	20801498
+PA005	CYP2D6	tramadol	Poor Metabolizer	1B	CYP2D6 poor metabolizers have impaired O-demethylation of tramadol to its active metabolite M1.	19636338
+PA006	CYP3A5	tacrolimus	Poor Metabolizer	1A	CYP3A5 non-expressers (*3/*3) have reduced tacrolimus metabolism leading to higher blood levels.	25801146
+PA007	CYP2C9	warfarin	Poor Metabolizer	1A	CYP2C9 poor metabolizers have impaired S-warfarin clearance leading to supra-therapeutic INR.	15947090, 17906972
+PA008	CYP2C9	warfarin	Intermediate Metabolizer	1B	CYP2C9 intermediate metabolizers have moderately reduced S-warfarin clearance.	15947090
+PA009	CYP2D6	sertraline	Poor Metabolizer	2A	CYP2D6 poor metabolizers may have higher sertraline plasma concentrations due to reduced demethylation.	16958828
+PA010	CYP2C19	sertraline	Poor Metabolizer	2A	CYP2C19 poor metabolizers show decreased sertraline N-demethylation.	16958828
