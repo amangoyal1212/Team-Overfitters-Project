@@ -45,9 +45,8 @@ class AnalysisResult(BaseModel):
     risk_score: float = Field(default=0, ge=0, le=100)
     severity: str = "NORMAL"
     evidence_level: str = ""
-    mechanism: str = ""
     recommendation: str = ""
-    llm_explanation: str = ""
+    evidence_breakdown: dict = Field(default_factory=dict)
     pmids: List[str] = Field(default_factory=list)
     cpic_source: str = ""
     activity_score: Optional[float] = None

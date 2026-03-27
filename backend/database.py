@@ -1,3 +1,5 @@
+import os
+
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey, Enum as SQLEnum, JSON
 from sqlalchemy.dialects.mysql import LONGTEXT
 from sqlalchemy.ext.declarative import declarative_base
@@ -5,7 +7,7 @@ from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
 import enum
 
-DATABASE_URL = "mysql+pymysql://root:123456@localhost:3306/geneguard_db"
+DATABASE_URL = os.environ.get("DATABASE_URL", "mysql+pymysql://root:123456@localhost:3306/geneguard_db")
 
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

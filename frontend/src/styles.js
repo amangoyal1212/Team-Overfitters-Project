@@ -1,13 +1,52 @@
-// Shared styles and constants for GeneGuard UI
-export const API = "http://localhost:8000";
+// Shared styles and constants for GeneGuard UI — Clinical Sanctuary Design
+export const API = import.meta.env.VITE_API_URL;
+
+// ── Color Palette (Stitch Clinical Sanctuary) ──
+const C = {
+  primary: '#1A6B3C',
+  primaryDark: '#005129',
+  primaryLight: '#A5F4B8',
+  primaryBg: 'rgba(26,107,60,0.06)',
+  primaryBorder: 'rgba(26,107,60,0.15)',
+  bg: '#F7F8F5',
+  surface: '#ffffff',
+  surfaceLow: '#F3F4F1',
+  surfaceMid: '#EDEEEB',
+  text: '#191C1B',
+  textSecondary: '#404940',
+  textMuted: '#707A70',
+  border: '#BFC9BE',
+  borderLight: '#E2E3E0',
+  danger: '#ba1a1a',
+  dangerBg: 'rgba(186,26,26,0.06)',
+  dangerBorder: 'rgba(186,26,26,0.15)',
+  warning: '#92400e',
+  warningBg: 'rgba(146,64,14,0.06)',
+  warningBorder: 'rgba(146,64,14,0.15)',
+  blue: '#2563eb',
+};
 
 export const PATIENTS = [
-  { id:"PT-001", drug:"Sertraline", risk:"NORMAL", allele:"CYP2D6: *1/*1", stripe:"green",
-    payload:{ patient_id:"PT-001", prescribed_drug:"sertraline", allele_calls:{ CYP2D6:"*1/*1" }}},
-  { id:"PT-002", drug:"Sertraline", risk:"MODERATE", allele:"CYP2D6: *1/*4", stripe:"amber",
-    payload:{ patient_id:"PT-002", prescribed_drug:"sertraline", allele_calls:{ CYP2D6:"*1/*4" }}},
-  { id:"PT-003", drug:"Sertraline", risk:"HIGH", allele:"CYP2D6: *4/*4", stripe:"red",
-    payload:{ patient_id:"PT-003", prescribed_drug:"sertraline", allele_calls:{ CYP2D6:"*4/*4" }}},
+  { id:"Ramesh Singh", risk:"NORMAL", allele:"Multi-Gene Panel", stripe:"green",
+    payload:{ patient_id:"Ramesh Singh", allele_calls:{ CYP2D6:"*1/*1", CYP2C19:"*1/*1", CYP2C9:"*1/*1", SLCO1B1:"*1/*1", DPYD:"*1/*1", TPMT:"*1/*1" }}},
+  { id:"Harshini Mehta", risk:"MODERATE", allele:"Multi-Gene Panel", stripe:"amber",
+    payload:{ patient_id:"Harshini Mehta", allele_calls:{ CYP2D6:"*1/*4", CYP2C19:"*1/*2", CYP2C9:"*1/*2", SLCO1B1:"*5", DPYD:"*1/*2A", TPMT:"*1/*2" }}},
+  { id:"Aarushi Yadav", risk:"HIGH", allele:"Multi-Gene Panel", stripe:"red",
+    payload:{ patient_id:"Aarushi Yadav", allele_calls:{ CYP2D6:"*4/*4", CYP2C19:"*2/*2", CYP2C9:"*3/*3", SLCO1B1:"*5/*5", DPYD:"*2A/*2A", TPMT:"*3/*3" }}},
+  { id:"Rajesh Kumar", risk:"NORMAL", allele:"Multi-Gene Panel", stripe:"green",
+    payload:{ patient_id:"Rajesh Kumar", allele_calls:{ CYP2D6:"*1/*1", CYP2C19:"*1/*1", CYP2C9:"*1/*1", SLCO1B1:"*1/*1", DPYD:"*1/*1", TPMT:"*1/*1" }}},
+  { id:"Priya Sharma", risk:"MODERATE", allele:"Multi-Gene Panel", stripe:"amber",
+    payload:{ patient_id:"Priya Sharma", allele_calls:{ CYP2D6:"*1/*4", CYP2C19:"*1/*1", CYP2C9:"*1/*2", SLCO1B1:"*1/*1", DPYD:"*1/*1", TPMT:"*1/*1" }}},
+  { id:"Amit Patel", risk:"HIGH", allele:"Multi-Gene Panel", stripe:"red",
+    payload:{ patient_id:"Amit Patel", allele_calls:{ CYP2D6:"*4/*4", CYP2C19:"*2/*2", CYP2C9:"*1/*1", SLCO1B1:"*1/*1", DPYD:"*1/*1", TPMT:"*1/*1" }}},
+  { id:"Sneha Desai", risk:"NORMAL", allele:"Multi-Gene Panel", stripe:"green",
+    payload:{ patient_id:"Sneha Desai", allele_calls:{ CYP2D6:"*1/*1", CYP2C19:"*1/*1", CYP2C9:"*1/*1", SLCO1B1:"*1/*1", DPYD:"*1/*1", TPMT:"*1/*1" }}},
+  { id:"Vikram Malhotra", risk:"MODERATE", allele:"Multi-Gene Panel", stripe:"amber",
+    payload:{ patient_id:"Vikram Malhotra", allele_calls:{ CYP2D6:"*1/*1", CYP2C19:"*1/*2", CYP2C9:"*1/*1", SLCO1B1:"*1/*5", DPYD:"*1/*1", TPMT:"*1/*1" }}},
+  { id:"Anita Reddy", risk:"HIGH", allele:"Multi-Gene Panel", stripe:"red",
+    payload:{ patient_id:"Anita Reddy", allele_calls:{ CYP2D6:"*1/*1", CYP2C19:"*1/*1", CYP2C9:"*3/*3", SLCO1B1:"*5/*5", DPYD:"*1/*1", TPMT:"*1/*1" }}},
+  { id:"Sanjay Gupta", risk:"NORMAL", allele:"Multi-Gene Panel", stripe:"green",
+    payload:{ patient_id:"Sanjay Gupta", allele_calls:{ CYP2D6:"*1/*1", CYP2C19:"*1/*1", CYP2C9:"*1/*1", SLCO1B1:"*1/*1", DPYD:"*1/*1", TPMT:"*1/*1" }}},
 ];
 
 export const DRUGS = [
@@ -35,24 +74,25 @@ export const DRUG_GENE_REASON = {
 };
 
 export const inputStyle = {
-  width:'100%', height:'40px', border:'1px solid #e2e8f0', borderRadius:'6px',
-  padding:'0 12px', fontSize:'14px', outline:'none', background:'#f8fafc',
-  boxSizing:'border-box', color:'#0f172a', fontFamily:'Inter, system-ui, sans-serif'
+  width:'100%', height:'44px', border:'none', borderBottom:'2px solid transparent',
+  borderRadius:'10px', padding:'0 16px', fontSize:'14px', outline:'none',
+  background:'#EDEEEB', boxSizing:'border-box', color:'#191C1B',
+  fontFamily:'Inter, system-ui, sans-serif', transition:'all 0.2s ease'
 };
 
 export const labelStyle = {
-  display:'block', fontSize:'12px', fontWeight:'500', color:'#374151',
-  marginBottom:'6px', letterSpacing:'0.3px'
+  display:'block', fontSize:'11px', fontWeight:'600', color:'#707A70',
+  marginBottom:'6px', letterSpacing:'1px', textTransform:'uppercase'
 };
 
 export const sevColor = (s) =>
-  s==='HIGH'?'#dc2626':s==='MODERATE'?'#d97706':s==='LOW'?'#2563eb':'#16a34a';
+  s==='HIGH'?'#ba1a1a':s==='MODERATE'?'#92400e':s==='LOW'?'#2563eb':'#1A6B3C';
 
 export const sevBg = (s) =>
-  s==='HIGH'?'#fef2f2':s==='MODERATE'?'#fffbeb':'#f0fdf4';
+  s==='HIGH'?'rgba(186,26,26,0.06)':s==='MODERATE'?'rgba(146,64,14,0.06)':'rgba(26,107,60,0.06)';
 
 export const sevBorder = (s) =>
-  s==='HIGH'?'1px solid #fecaca':s==='MODERATE'?'1px solid #fde68a':'1px solid #bbf7d0';
+  s==='HIGH'?'1px solid rgba(186,26,26,0.15)':s==='MODERATE'?'1px solid rgba(146,64,14,0.15)':'1px solid rgba(26,107,60,0.15)';
 
 export const stripeColor = (s) =>
-  s==='green'?'#16a34a':s==='amber'?'#d97706':'#dc2626';
+  s==='green'?'#1A6B3C':s==='amber'?'#92400e':'#ba1a1a';

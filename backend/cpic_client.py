@@ -36,8 +36,46 @@ CYP2C19_TABLE = {
     "*17/*17": {"phenotype": "Ultrarapid Metabolizer", "activity_score": 3.0},
 }
 
+CYP2C9_TABLE = {
+    "*1/*1":   {"phenotype": "Normal Metabolizer", "activity_score": 2.0},
+    "*1/*2":   {"phenotype": "Intermediate Metabolizer", "activity_score": 1.5},
+    "*1/*3":   {"phenotype": "Intermediate Metabolizer", "activity_score": 1.0},
+    "*2/*2":   {"phenotype": "Poor Metabolizer", "activity_score": 1.0},
+    "*2/*3":   {"phenotype": "Poor Metabolizer", "activity_score": 0.5},
+    "*3/*3":   {"phenotype": "Poor Metabolizer", "activity_score": 0.0},
+}
+
+SLCO1B1_TABLE = {
+    "*1/*1":   {"phenotype": "Normal Function", "activity_score": 2.0},
+    "*1/*5":   {"phenotype": "Decreased Function", "activity_score": 1.0},
+    "*5":      {"phenotype": "Decreased Function", "activity_score": 1.0},
+    "*5/*5":   {"phenotype": "Poor Function", "activity_score": 0.0},
+}
+
+DPYD_TABLE = {
+    "*1/*1":   {"phenotype": "Normal Metabolizer", "activity_score": 2.0},
+    "*1/*2A":  {"phenotype": "Intermediate Metabolizer", "activity_score": 1.0},
+    "*2A/*2A": {"phenotype": "Poor Metabolizer", "activity_score": 0.0},
+}
+
+TPMT_TABLE = {
+    "*1/*1":   {"phenotype": "Normal Metabolizer", "activity_score": 2.0},
+    "*1/*2":   {"phenotype": "Intermediate Metabolizer", "activity_score": 1.0},
+    "*1/*3A":  {"phenotype": "Intermediate Metabolizer", "activity_score": 1.0},
+    "*2/*2":   {"phenotype": "Poor Metabolizer", "activity_score": 0.0},
+    "*3A/*3A": {"phenotype": "Poor Metabolizer", "activity_score": 0.0},
+    "*3/*3":   {"phenotype": "Poor Metabolizer", "activity_score": 0.0},
+}
+
 def get_local_phenotype(gene: str, diplotype: str) -> dict:
-    tables = {"CYP2D6": CYP2D6_TABLE, "CYP2C19": CYP2C19_TABLE}
+    tables = {
+        "CYP2D6": CYP2D6_TABLE, 
+        "CYP2C19": CYP2C19_TABLE,
+        "CYP2C9": CYP2C9_TABLE,
+        "SLCO1B1": SLCO1B1_TABLE,
+        "DPYD": DPYD_TABLE,
+        "TPMT": TPMT_TABLE
+    }
     gene_table = tables.get(gene, {})
     result = (
         gene_table.get(diplotype) or
@@ -49,8 +87,8 @@ def get_local_phenotype(gene: str, diplotype: str) -> dict:
             "activity_score": result["activity_score"],
             "ehr_priority": "",
             "consultation_text": "",
-            "source": "CPIC 2023 Local Table",
-            "cpic_version": "2023",
+            "source": "CPIC Latest Local Table",
+            "cpic_version": "Latest",
             "guideline_url": "https://doi.org/10.1002/cpt.2903"
         }
     return {
@@ -59,7 +97,7 @@ def get_local_phenotype(gene: str, diplotype: str) -> dict:
         "ehr_priority": "",
         "consultation_text": "",
         "source": "Not found in CPIC tables",
-        "cpic_version": "2023",
+        "cpic_version": "Latest",
         "guideline_url": ""
     }
 
@@ -119,7 +157,7 @@ async def get_cpic_phenotype(gene: str, diplotype: str) -> dict:
                         ),
                         "consultation_text": consultation,
                         "source": "CPIC Official API v1",
-                        "cpic_version": "2023",
+                        "cpic_version": "Latest",
                         "guideline_url": (
                             "https://cpicpgx.org/guidelines/"
                             "cpic-guideline-for-ssri-and-"

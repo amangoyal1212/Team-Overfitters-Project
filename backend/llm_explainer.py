@@ -19,7 +19,7 @@ def generate_explanation(
     try:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel(
-            "gemini-flash-latest"
+            "gemini-2.5-flash-lite"
         )
         prompt = f"""You are a clinical pharmacogenomics expert.
 Write a concise 3-sentence clinical explanation for a doctor.

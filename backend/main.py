@@ -1,7 +1,7 @@
 """
-# Triggering Pyre analysis
 GeneGuard – Pharmacogenomics Risk Analysis API
 FastAPI backend entry point.
+All clinical recommendations are deterministic (no AI/ML/NLP).
 """
 
 from dotenv import load_dotenv
@@ -10,23 +10,20 @@ load_dotenv()
 import os
 import json
 import time
-import base64
 import asyncio
-
-import google.generativeai as genai
 
 from database import create_tables, create_vcf_table, get_db, VCFUpload, VCFStatus  # noqa: E402
 from auth_routes import router as auth_router, get_current_user, User  # noqa: E402
-from sqlalchemy.orm import Session # noqa: E402
+from sqlalchemy.orm import Session  # noqa: E402
 from fastapi import FastAPI, HTTPException, File, UploadFile, Depends  # noqa: E402
-from fastapi import FastAPI, HTTPException, File, UploadFile  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from pydantic import BaseModel  # noqa: E402
 
 from models import PatientInput, AnalysisResult  # noqa: E402
 from phenotype_mapper import map_phenotype  # noqa: E402
 from pharmgkb_lookup import lookup_interaction, get_relevant_gene  # noqa: E402
 from risk_engine import calculate_risk, get_alternatives  # noqa: E402
-from llm_explainer import generate_explanation  # noqa: E402
+from evidence_breakdown import build_evidence_breakdown  # noqa: E402
 from vcf_parser import parse_vcf_content  # noqa: E402
 from cpic_client import (  # noqa: E402
     get_cpic_phenotype,
@@ -49,7 +46,12 @@ app.include_router(auth_router)
 # ---------------------------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "https://your-vercel-url.vercel.app",
+        "https://*.vercel.app",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -98,9 +100,9 @@ async def analyze(payload: PatientInput):
     results = []
 
     for idx, drug_name in enumerate(drug_list):
-        # Rate-limit sequential calls to avoid Gemini 429 errors
+        # Brief pause between sequential calls
         if idx > 0:
-            time.sleep(1)
+            time.sleep(0.2)
         try:
             relevant_gene = get_relevant_gene(drug_name)
             if not relevant_gene:
@@ -148,20 +150,26 @@ async def analyze(payload: PatientInput):
                 phenotype, annotation.get("evidence_level", "none")
             )
 
-            # Step 4 – Generate a human-readable explanation via LLM
-            llm_explanation = await asyncio.to_thread(
-                generate_explanation,
+            # Step 4 – Get safer alternatives
+            alternatives = get_alternatives(gene, phenotype, drug_name, payload.allele_calls)
+
+            # Step 5 – Build deterministic Evidence Breakdown
+            evidence = build_evidence_breakdown(
                 gene=gene,
-                allele=diplotype,
+                diplotype=diplotype,
                 phenotype=phenotype,
                 drug=drug_name,
                 risk_score=risk_score,
-                cpic_recommendation=cpic_rec.get("recommendation", ""),
-                consultation_text=consultation_text
+                severity=severity,
+                evidence_level=annotation.get("evidence_level", "none"),
+                annotation_text=annotation.get("annotation_text", ""),
+                pmids=annotation.get("pmids", []),
+                cpic_source=cpic_source,
+                activity_score=activity_score,
+                cpic_recommendation=cpic_rec.get("cpic_recommendation", ""),
+                cpic_guideline_url=cpic_guideline_url,
+                consultation_text=consultation_text,
             )
-
-            # Step 5 – Get safer alternatives
-            alternatives = get_alternatives(gene, phenotype, drug_name, payload.allele_calls)
 
             result = AnalysisResult(
                 patient_id=payload.patient_id,
@@ -172,9 +180,8 @@ async def analyze(payload: PatientInput):
                 risk_score=risk_score,
                 severity=severity,
                 evidence_level=annotation.get("evidence_level", "none"),
-                mechanism="See LLM explanation for mechanism details.",
                 recommendation=cpic_rec.get("recommendation", "Review clinical annotation for detailed guidelines."),
-                llm_explanation=llm_explanation,
+                evidence_breakdown=evidence,
                 pmids=annotation.get("pmids", []),
                 cpic_source=cpic_source,
                 activity_score=activity_score,
@@ -269,21 +276,27 @@ async def analyze_vcf(
             )
             risk = {"risk_score": risk_score, "severity": severity}
 
-            # Step 4 – Generate LLM explanation
-            llm_text = await asyncio.to_thread(
-                generate_explanation,
+            # Step 4 – Safer alternatives
+            alternatives = get_alternatives(
+                gene, phenotype, drug, {}
+            )
+
+            # Step 5 – Build deterministic Evidence Breakdown
+            evidence = build_evidence_breakdown(
                 gene=gene,
-                allele=diplotype,
+                diplotype=diplotype,
                 phenotype=phenotype,
                 drug=drug,
                 risk_score=risk_score,
-                cpic_recommendation=cpic_rec.get("recommendation", ""),
-                consultation_text=cpic_data.get("consultation_text", "")
-            )
-
-            # Step 5 – Safer alternatives
-            alternatives = get_alternatives(
-                gene, phenotype, drug, {}
+                severity=severity,
+                evidence_level=interaction.get("evidence_level", "none"),
+                annotation_text=interaction.get("annotation_text", ""),
+                pmids=interaction.get("pmids", []),
+                cpic_source=cpic_data.get("source", "CPIC Official API"),
+                activity_score=cpic_data.get("activity_score"),
+                cpic_recommendation=cpic_rec.get("cpic_recommendation", ""),
+                cpic_guideline_url=cpic_data.get("guideline_url", ""),
+                consultation_text=cpic_data.get("consultation_text", ""),
             )
 
             # Build result
@@ -298,11 +311,10 @@ async def analyze_vcf(
                 evidence_level=interaction.get(
                     "evidence_level", ""
                 ),
-                mechanism="See LLM explanation for mechanism details.",
                 recommendation=cpic_rec.get(
                     "recommendation", "Review clinical annotation for detailed guidelines."
                 ),
-                llm_explanation=llm_text,
+                evidence_breakdown=evidence,
                 pmids=interaction.get("pmids", []),
                 cpic_source=cpic_data.get(
                     "source", "CPIC Official API"
@@ -427,203 +439,139 @@ async def get_vcf_history(
         raise HTTPException(status_code=500, detail=f"Failed to fetch VCF history: {str(e)}")
 
 
-@app.post("/api/analyze/image")
-async def analyze_image(
-    file: UploadFile = File(...),
-    patient_gene: str = "CYP2D6",
-    patient_allele: str = "*4/*4"
-):
+# ---------------------------------------------------------------------------
+# Local Medicine Strip Scanner (EasyOCR + RapidFuzz, no cloud API)
+# ---------------------------------------------------------------------------
+from medicine_scanner import scan_medicine as _scan_medicine, get_drug_entry, search_drugs as local_search_drugs
+
+@app.post("/api/scan-medicine")
+async def scan_medicine_endpoint(file: UploadFile = File(...)):
+    """
+    Local-only medicine strip scanner.
+    Uses EasyOCR for text extraction + RapidFuzz for drug name matching.
+    No cloud API, no AI/ML for clinical decisions.
+    """
     try:
         image_bytes = await file.read()
-        image_b64 = base64.b64encode(
-            image_bytes
-        ).decode("utf-8")
-        content_type = (
-            file.content_type or "image/jpeg"
+        result = await asyncio.to_thread(_scan_medicine, image_bytes)
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Medicine scan failed: {str(e)}"
         )
 
-        api_key = os.getenv("GEMINI_API_KEY", "")
-        if not api_key:
-            raise HTTPException(
-                status_code=500,
-                detail="GEMINI_API_KEY not configured"
-            )
 
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel(
-            "gemini-flash-latest"
-        )
+class ScanConfirmInput(BaseModel):
+    drug_name: str
+    patient_gene: str = ""
+    patient_allele: str = ""
 
-        extraction_prompt = """
-Look at this medicine photo carefully.
-Extract the generic drug name from the
-pill strip, bottle label, or packaging.
-Return ONLY a JSON object like this:
-{
-  "drug_name": "clopidogrel",
-  "brand_name": "Plavix",
-  "dosage": "75mg",
-  "confidence": "high"
-}
-If cannot identify return:
-{
-  "drug_name": "unknown",
-  "brand_name": "",
-  "dosage": "",
-  "confidence": "low"
-}
-Only JSON. Nothing else.
-"""
 
-        image_part = {
-            "mime_type": content_type,
-            "data": image_b64
-        }
+@app.post("/api/scan-medicine/confirm")
+async def confirm_scanned_medicine(payload: ScanConfirmInput):
+    """
+    Called ONLY after user confirms the detected drug.
+    If the drug is PGx-relevant and patient genotype exists,
+    runs deterministic CPIC PGx check and returns interaction status.
+    Scanner output NEVER directly triggers prescribing.
+    """
+    drug_name = payload.drug_name.strip()
+    entry = get_drug_entry(drug_name)
 
-        response = model.generate_content(
-            [extraction_prompt, image_part]
-        )
-
-        raw_text = response.text.strip()
-        if "```json" in raw_text:
-            raw_text = raw_text.split(
-                "```json"
-            )[1].split("```")[0].strip()
-        elif "```" in raw_text:
-            raw_text = raw_text.split(
-                "```"
-            )[1].split("```")[0].strip()
-
-        try:
-            drug_data = json.loads(raw_text)
-        except Exception:
-            drug_data = {
-                "drug_name": "unknown",
-                "confidence": "low"
-            }
-
-        extracted_drug = drug_data.get(
-            "drug_name", "unknown"
-        ).lower().strip()
-        brand_name = drug_data.get("brand_name", "")
-        confidence = drug_data.get("confidence", "low")
-
-        if extracted_drug == "unknown":
-            return {
-                "success": False,
-                "error": "Could not identify medicine. Try a clearer photo."
-            }
-
-        DRUG_NAME_MAP = {
-            "clopidogrel": "clopidogrel",
-            "plavix": "clopidogrel",
-            "sertraline": "sertraline",
-            "zoloft": "sertraline",
-            "citalopram": "citalopram",
-            "celexa": "citalopram",
-            "escitalopram": "escitalopram",
-            "lexapro": "escitalopram",
-            "fluoxetine": "fluoxetine",
-            "prozac": "fluoxetine",
-            "paroxetine": "paroxetine",
-            "paxil": "paroxetine",
-            "warfarin": "warfarin",
-            "coumadin": "warfarin",
-            "simvastatin": "simvastatin",
-            "zocor": "simvastatin",
-            "atorvastatin": "atorvastatin",
-            "lipitor": "atorvastatin",
-            "codeine": "codeine",
-            "fluorouracil": "fluorouracil",
-            "azathioprine": "azathioprine",
-            "risperidone": "risperidone",
-            "risperdal": "risperidone"
-        }
-
-        mapped_drug = DRUG_NAME_MAP.get(
-            extracted_drug, extracted_drug
-        )
-        gene = patient_gene
-        allele = patient_allele
-
-        cpic_data = await get_cpic_phenotype(
-            gene, allele
-        )
-        phenotype = cpic_data.get(
-            "phenotype", "Unknown"
-        )
-
-        interaction = lookup_interaction(
-            gene, phenotype, mapped_drug
-        )
-        cpic_rec = await get_cpic_recommendation(
-            gene,
-            phenotype,
-            DRUG_RXNORM_MAP.get(mapped_drug, "")
-        )
-        risk_score, severity = calculate_risk(
-            phenotype,
-            interaction.get("evidence_level", "none")
-        )
-        alternatives = get_alternatives(
-            gene, phenotype, mapped_drug, {}
-        )
-        llm_text = await asyncio.to_thread(
-            generate_explanation,
-            gene, allele, phenotype,
-            mapped_drug,
-            risk_score,
-            cpic_rec.get("recommendation", ""),
-            cpic_data.get("consultation_text", "")
-        )
-
+    if not entry:
         return {
-            "success": True,
-            "scanned_drug": extracted_drug,
-            "brand_name": brand_name,
-            "mapped_drug": mapped_drug,
-            "confidence": confidence,
+            "confirmed": True,
+            "drug_name": drug_name,
+            "pgx_relevant": False,
+            "message": "Drug confirmed. Unable to identify in database.",
+            "pgx_check": None,
+        }
+
+    pgx_relevant = entry.get("pgx_relevant", False)
+
+    if not pgx_relevant:
+        category = entry.get("category", entry.get("therapeutic_class", ""))
+        indication = entry.get("common_indication", "")
+        return {
+            "confirmed": True,
+            "drug_name": drug_name,
+            "pgx_relevant": False,
+            "message": f"{drug_name} has no known pharmacogenomic interactions. Standard dosing applies.",
+            "category": category,
+            "common_indication": indication,
+            "pgx_check": None,
+        }
+
+    # PGx-relevant drug: run deterministic check if genotype provided
+    if not payload.patient_gene or not payload.patient_allele:
+        return {
+            "confirmed": True,
+            "drug_name": drug_name,
+            "pgx_relevant": True,
+            "pgx_genes": entry.get("pgx_genes", []),
+            "message": f"Drug is PGx-relevant ({', '.join(entry.get('pgx_genes', []))}). Provide patient genotype for interaction check.",
+            "pgx_check": None,
+        }
+
+    # Run deterministic CPIC PGx check
+    gene = payload.patient_gene
+    allele = payload.patient_allele
+
+    cpic_data = await get_cpic_phenotype(gene, allele)
+    phenotype = cpic_data.get("phenotype", "Unknown")
+
+    interaction = lookup_interaction(gene, phenotype, drug_name.lower())
+    risk_score, severity = calculate_risk(
+        phenotype, interaction.get("evidence_level", "none")
+    )
+
+    # Build evidence breakdown
+    evidence = build_evidence_breakdown(
+        gene=gene, diplotype=allele, phenotype=phenotype,
+        drug=drug_name, risk_score=risk_score, severity=severity,
+        evidence_level=interaction.get("evidence_level", "none"),
+        annotation_text=interaction.get("annotation_text", ""),
+        pmids=interaction.get("pmids", []),
+        cpic_source=cpic_data.get("source", ""),
+        activity_score=cpic_data.get("activity_score"),
+        cpic_guideline_url=cpic_data.get("guideline_url", ""),
+        consultation_text=cpic_data.get("consultation_text", ""),
+    )
+
+    # Get alternatives only if HIGH risk
+    alternatives = []
+    if severity == "HIGH":
+        alternatives = entry.get("alternatives", [])
+
+    return {
+        "confirmed": True,
+        "drug_name": drug_name,
+        "pgx_relevant": True,
+        "pgx_genes": entry.get("pgx_genes", []),
+        "pgx_check": {
             "gene": gene,
             "allele": allele,
             "phenotype": phenotype,
             "risk_score": risk_score,
             "severity": severity,
-            "recommendation": interaction.get(
-                "recommendation", ""
-            ),
-            "llm_explanation": llm_text,
+            "evidence_breakdown": evidence,
             "alternatives": alternatives,
-            "cpic_recommendation": cpic_rec.get(
-                "recommendation", ""
-            ),
-            "consultation_text": cpic_data.get(
-                "consultation_text", ""
-            ),
-            "ehr_priority": cpic_data.get(
-                "ehr_priority", ""
-            ),
-            "activity_score": cpic_data.get(
-                "activity_score"
-            ),
-            "source": "Camera Scan + Gemini Vision"
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Image analysis failed: {str(e)}"
-        )
+        },
+        "message": (
+            f"{'⚠️ HIGH RISK' if severity == 'HIGH' else '✓ ' + severity} — "
+            f"{phenotype} for {gene}. "
+            f"{'Consider alternatives: ' + ', '.join(alternatives) if alternatives else 'Standard precautions apply.'}"
+        ),
+    }
 
 
-from drug_search import search_drugs
 from pharmgkb_lookup import get_drug_database_info
 from therapeutic_classes import THERAPEUTIC_CLASS, GENE_PATHWAY, get_alternatives as tc_get_alternatives
 
 @app.get("/api/drug/search")
 async def api_search_drugs(q: str = "", limit: int = 10):
-    return search_drugs(q, limit=limit)
+    return local_search_drugs(q, limit=limit)
 
 
 @app.get("/api/drug/database")
@@ -631,7 +579,7 @@ async def api_drug_database():
     return get_drug_database_info()
 
 
-from pydantic import BaseModel
+
 class QuickCheckInput(BaseModel):
     drug_name: str
     patient_genotype: str | None = None
@@ -723,18 +671,68 @@ async def api_alternatives(payload: AlternativeRequest):
     }
 
 
+# ---------------------------------------------------------------------------
+# Genetic Compatibility Checker (Mendelian, 100% local, no external API)
+# ---------------------------------------------------------------------------
+from compatibility_checker import run_compatibility_analysis
+
+@app.post("/api/compatibility")
+async def analyze_compatibility(
+    file1: UploadFile = File(...),
+    file2: UploadFile = File(...),
+):
+    """
+    Accept two VCF files (one per partner) and compute Mendelian
+    inheritance probabilities for pharmacogenomic risks.
+    100% deterministic, 100% local — no external API calls.
+    """
+    try:
+        # Read both files
+        content1 = await file1.read()
+        content2 = await file2.read()
+
+        try:
+            vcf1_text = content1.decode("utf-8")
+        except UnicodeDecodeError:
+            vcf1_text = content1.decode("utf-8", errors="replace")
+
+        try:
+            vcf2_text = content2.decode("utf-8")
+        except UnicodeDecodeError:
+            vcf2_text = content2.decode("utf-8", errors="replace")
+
+        # Run compatibility analysis (fully local)
+        result = run_compatibility_analysis(vcf1_text, vcf2_text)
+
+        if not result["success"]:
+            raise HTTPException(status_code=400, detail=result.get("error", "Analysis failed"))
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Compatibility analysis failed: {str(e)}"
+        )
+
+
 @app.on_event("startup")
 async def startup_check():
-    key = os.getenv("GEMINI_API_KEY", "")
     print("\n========================================")
     print("  GENEGUARD STARTED SUCCESSFULLY")
     print("========================================")
-    if key:
-        print(f"  Gemini  : OK (...{key[-6:]})")
-    else:
-        print("  Gemini  : MISSING!")
+    print("  Pipeline: Deterministic PGx")
+    print("  Scanner : Local OCR (EasyOCR)")
     print("  DB      : geneguard_db")
     print("  Port    : 8000")
-    print("  Model   : gemini-flash-latest")
     print("  Search  : Fuzzy Enabled")
+    print("  AI/LLM  : NONE (all deterministic)")
     print("========================================\n")
+
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)

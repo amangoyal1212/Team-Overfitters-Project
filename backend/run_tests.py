@@ -38,7 +38,8 @@ try:
     r = data[0]
     print(f"risk_score: {r['risk_score']}")
     print(f"severity: {r['severity']}")
-    print(f"llm_explanation: {r['llm_explanation'][:300]}")
+    eb = r.get('evidence_breakdown', {})
+    print(f"evidence_breakdown: gene={eb.get('gene_analyzed','N/A')}, phenotype={eb.get('phenotype_assigned','N/A')}, source={eb.get('source','N/A')}")
     
     if r["risk_score"] >= 80 and r["severity"] == "HIGH":
         print(">>> PASS")
