@@ -9,6 +9,11 @@ import enum
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "mysql+pymysql://root:123456@localhost:3306/geneguard_db")
 
+# Railway provides MYSQL_URL with mysql:// prefix — replace with pymysql driver
+_railway_url = os.environ.get("MYSQL_URL")
+if _railway_url:
+    DATABASE_URL = _railway_url.replace("mysql://", "mysql+pymysql://")
+
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
