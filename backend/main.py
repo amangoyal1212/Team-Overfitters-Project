@@ -49,7 +49,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://localhost:5174",
-        "https://your-vercel-url.vercel.app",
+        "https://team-overfitters-project-production.up.railway.app",
         "https://*.vercel.app",
     ],
     allow_credentials=True,
