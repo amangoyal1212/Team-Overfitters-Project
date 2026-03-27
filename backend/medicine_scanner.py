@@ -1,6 +1,6 @@
 """
 medicine_scanner.py
-Local-only medicine strip scanner using EasyOCR + RapidFuzz.
+Local-only medicine strip scanner using Tesseract OCR + RapidFuzz.
 No cloud APIs, no AI/ML models for clinical decisions.
 This module is ONLY for medication identification via OCR.
 """
@@ -10,8 +10,9 @@ from __future__ import annotations
 import io
 import re
 import json
-import threading
 from pathlib import Path
+
+import pytesseract
 from PIL import Image
 from rapidfuzz import fuzz
 
@@ -41,76 +42,41 @@ _load_database()
 
 
 # ---------------------------------------------------------------------------
-# Lazy-load EasyOCR reader (heavy model, load once)
-# ---------------------------------------------------------------------------
-_ocr_reader = None
-_ocr_lock = threading.Lock()
-
-def _get_ocr_reader():
-    global _ocr_reader
-    if _ocr_reader is not None:
-        return _ocr_reader
-    with _ocr_lock:
-        if _ocr_reader is not None:
-            return _ocr_reader
-        import easyocr
-        import time
-
-        # Clean up stale temp files that cause WinError 32 on Windows
-        model_dir = Path.home() / ".EasyOCR" / "model"
-        if model_dir.exists():
-            for tmp in model_dir.glob("temp*"):
-                try:
-                    tmp.unlink()
-                except (PermissionError, OSError):
-                    pass  # still locked — will retry
-
-        # Retry up to 3 times in case of transient file locks
-        for attempt in range(3):
-            try:
-                _ocr_reader = easyocr.Reader(["en"], gpu=False, verbose=False)
-                break
-            except (PermissionError, OSError) as e:
-                if attempt < 2:
-                    time.sleep(1)
-                else:
-                    raise RuntimeError(
-                        f"EasyOCR failed to initialize after 3 attempts: {e}. "
-                        f"Try deleting {model_dir / 'temp.zip'} manually."
-                    )
-    return _ocr_reader
-
-
-# Pre-warm OCR reader in background thread so first scan is fast
-def _preload_ocr():
-    try:
-        _get_ocr_reader()
-    except Exception:
-        pass  # will retry on first actual scan
-
-threading.Thread(target=_preload_ocr, daemon=True).start()
-
-
-# ---------------------------------------------------------------------------
-# Image preprocessing — downscale large images for faster OCR
+# Tesseract OCR text extraction
 # ---------------------------------------------------------------------------
 _MAX_OCR_WIDTH = 1280
 
-def _preprocess_image(image_bytes: bytes) -> bytes:
-    """Downscale large images to speed up OCR without losing text quality."""
-    try:
-        img = Image.open(io.BytesIO(image_bytes))
-        w, h = img.size
-        if w > _MAX_OCR_WIDTH:
-            ratio = _MAX_OCR_WIDTH / w
-            new_size = (int(w * ratio), int(h * ratio))
-            img = img.resize(new_size, Image.LANCZOS)
-            buf = io.BytesIO()
-            img.save(buf, format="JPEG", quality=85)
-            return buf.getvalue()
-    except Exception:
-        pass  # fallback to original bytes
-    return image_bytes
+def extract_text_from_image(image_bytes: bytes) -> list[str]:
+    """
+    Extract text from a medicine strip image using Tesseract OCR.
+    Returns a list of non-empty text lines.
+    """
+    image = Image.open(io.BytesIO(image_bytes))
+
+    # Convert to RGB if needed
+    if image.mode != 'RGB':
+        image = image.convert('RGB')
+
+    # Downscale large images for speed
+    w, h = image.size
+    if w > _MAX_OCR_WIDTH:
+        ratio = _MAX_OCR_WIDTH / w
+        new_size = (int(w * ratio), int(h * ratio))
+        image = image.resize(new_size, Image.LANCZOS)
+
+    # Extract text using Tesseract
+    # --oem 3: Default (LSTM + legacy combined)
+    # --psm 6: Assume a single uniform block of text
+    custom_config = r'--oem 3 --psm 6'
+    text = pytesseract.image_to_string(
+        image,
+        config=custom_config,
+        lang='eng',
+    )
+
+    # Split into non-empty lines
+    lines = [line.strip() for line in text.strip().splitlines() if line.strip()]
+    return lines
 
 
 # ---------------------------------------------------------------------------
@@ -203,25 +169,15 @@ def scan_medicine(image_bytes: bytes) -> dict:
     Returns standardized JSON output.
 
     Pipeline (all deterministic):
-    1. EasyOCR extracts text blocks
+    1. Tesseract OCR extracts text lines
     2. Regex extracts dose patterns
     3. Fuzzy match against brand_names and generic_names
     4. Apply threshold rules
     """
-    reader = _get_ocr_reader()
-
-    # Step 0: Preprocess — downscale large images for speed
-    processed_bytes = _preprocess_image(image_bytes)
-
-    # Step 1: OCR
-    results = reader.readtext(processed_bytes)
-    # results is list of (bbox, text, confidence)
-    ocr_text_blocks = [r[1] for r in results]
-    ocr_confidences = [r[2] for r in results]
-    avg_ocr_confidence = (
-        round(sum(ocr_confidences) / len(ocr_confidences) * 100, 1)
-        if ocr_confidences else None
-    )
+    # Step 1: OCR via Tesseract
+    ocr_text_blocks = extract_text_from_image(image_bytes)
+    # Tesseract doesn't provide per-line confidence in basic mode
+    avg_ocr_confidence = None
 
     # Step 2: Extract dose
     detected_dose = _extract_dose(ocr_text_blocks)
@@ -303,7 +259,7 @@ def scan_medicine(image_bytes: bytes) -> dict:
         "pgx_relevant": pgx_relevant,
         "pgx_genes": pgx_genes,
         "pgx_status": pgx_status,
-        "source": "Local ML Pipeline (EasyOCR + RapidFuzz)",
+        "source": "Local OCR Pipeline (Tesseract + RapidFuzz)",
     }
 
 
