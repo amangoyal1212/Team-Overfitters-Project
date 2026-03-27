@@ -50,6 +50,7 @@ app.add_middleware(
         "http://localhost:5173",
         "http://localhost:5174",
         "https://team-overfitters-project-production.up.railway.app",
+        "https://team-overfitters-project.vercel.app",
         "https://*.vercel.app",
     ],
     allow_credentials=True,
